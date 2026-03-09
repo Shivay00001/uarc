@@ -19,6 +19,10 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
+[project.urls]
+Homepage = "https://github.com/Shivay00001/uarc"
+Repository = "https://github.com/Shivay00001/uarc.git"
+"Bug Tracker" = "https://github.com/Shivay00001/uarc/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
