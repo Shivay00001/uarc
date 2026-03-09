@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "uarc"
+version = "0.2.0"
+description = "UARC - Unified Adaptive Runtime Core: Production AI inference engine"
+readme = "uarc_README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "UARC Team"}]
+keywords = ["ai", "inference", "llm", "runtime", "adaptive", "ollama"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+llama = ["llama-cpp-python>=0.2.0"]
+embeddings = ["sentence-transformers>=2.0"]
+hf = ["torch>=2.0.0", "transformers>=4.30.0", "accelerate>=0.20.0"]
+vllm = ["vllm>=0.3.0"]
+full = ["llama-cpp-python>=0.2.0", "sentence-transformers>=2.0", "torch>=2.0.0", "transformers>=4.30.0", "accelerate>=0.20.0", "vllm>=0.3.0"]
+
+[project.scripts]
+uarc = "uarc.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["uarc*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

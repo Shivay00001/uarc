@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UARC Dashboard</title>
+    <link rel="stylesheet" href="/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        
+        <!-- Header -->
+        <header class="top-nav">
+            <div class="logo">
+                <div class="logo-icon"></div>
+                <h1>UARC <span class="badge">v0.2</span></h1>
+            </div>
+            <div class="status-indicator">
+                <span class="dot pulse"></span>
+                <span id="backend-status">Connecting to Engine...</span>
+            </div>
+        </header>
+
+        <div class="main-layout">
+            
+            <!-- Left: Chat Interface -->
+            <section class="chat-section glass-panel">
+                <div class="chat-header">
+                    <h2>Inference Session</h2>
+                    <div class="model-badge" id="active-model">Model: Unknown</div>
+                </div>
+                
+                <div class="chat-messages" id="chat-container">
+                    <div class="message system">
+                        <div class="avatar">U</div>
+                        <div class="bubble">Unified Adaptive Runtime Core is ready. What would you like to compute?</div>
+                    </div>
+                </div>
+
+                <div class="input-area">
+                    <textarea id="prompt-input" placeholder="Type your prompt here... (Shift+Enter for newline)" rows="1"></textarea>
+                    <button id="send-btn" class="primary-btn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Right: Real-time Stats -->
+            <section class="stats-section">
+                
+                <!-- Metrics Card -->
+                <div class="glass-panel stat-card">
+                    <h3>Engine Telemetry</h3>
+                    <div class="grid-stats">
+                        <div class="stat-box">
+                            <span class="label">Speed</span>
+                            <span class="value highlight" id="stat-tps">-- <small>tok/s</small></span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="label">Latency</span>
+                            <span class="value" id="stat-latency">-- <small>ms</small></span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="label">Compute Saved</span>
+                            <span class="value text-green" id="stat-saved">-- <small>%</small></span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="label">Route Mode</span>
+                            <span class="value text-blue" id="stat-route">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Memory Card -->
+                <div class="glass-panel stat-card">
+                    <h3>AI-VM Status</h3>
+                    
+                    <div class="meter-group">
+                        <div class="meter-header">
+                            <span class="label">VRAM (L1)</span>
+                            <span class="value" id="vram-text">-- / -- MB</span>
+                        </div>
+                        <div class="meter-bar"><div class="fill bg-purple" id="vram-fill" style="width: 0%"></div></div>
+                    </div>
+
+                    <div class="meter-group">
+                        <div class="meter-header">
+                            <span class="label">RAM (L2)</span>
+                            <span class="value" id="ram-text">-- / -- MB</span>
+                        </div>
+                        <div class="meter-bar"><div class="fill bg-blue" id="ram-fill" style="width: 0%"></div></div>
+                    </div>
+
+                    <div class="metrics-row mt-4">
+                        <div class="metric">
+                            <span class="val" id="metric-swaps">--</span>
+                            <span class="lbl">Page Swaps</span>
+                        </div>
+                        <div class="metric">
+                            <span class="val" id="metric-kv">--</span>
+                            <span class="lbl">KV Shares</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- NSC Cache Card -->
+                <div class="glass-panel stat-card">
+                    <div class="flex-between">
+                        <h3>Neural Semantic Cache</h3>
+                        <button id="clear-cache-btn" class="sm-btn">Clear</button>
+                    </div>
+                    
+                    <div class="cache-stats">
+                        <div class="cache-ring">
+                            <svg viewBox="0 0 36 36" class="circular-chart">
+                                <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                                <path class="circle" id="cache-donut" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                            </svg>
+                            <div class="ring-text" id="cache-pct">--%</div>
+                        </div>
+                        <div class="cache-details">
+                            <div class="detail"><span class="dot bg-green"></span> Hits: <b id="cache-hits">--</b></div>
+                            <div class="detail"><span class="dot bg-gray"></span> Misses: <b id="cache-misses">--</b></div>
+                            <div class="detail mt-2">Entries: <b id="cache-size">--</b></div>
+                            <div class="detail">Threshold: <b id="cache-thresh">--</b></div>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+        </div>
+    </div>
+    <script src="/app.js"></script>
+</body>
+</html>
