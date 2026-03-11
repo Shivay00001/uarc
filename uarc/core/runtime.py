@@ -23,6 +23,7 @@ from uarc.routing.tde import TokenDifficultyEstimator
 from uarc.routing.nsc import NeuralSemanticCache
 from uarc.memory.aivm import AIVirtualMemoryManager, PredictiveLayerLoader
 from uarc.scheduling.dpe_acs import DynamicPrecisionEngine, AdaptiveComputeScheduler
+from uarc.scheduling.eads import EADSScheduler
 from uarc.backends.base import ModelBackend
 
 
@@ -109,9 +110,14 @@ def _detect_backend(cfg: UARCConfig) -> ModelBackend:
             from uarc.backends.huggingface import HuggingFaceBackend
             # Use cfg.model_name if provided, otherwise fallback to a default
             hf_model_name = cfg.model_name if cfg.model_name else "gpt2"
-            hb = HuggingFaceBackend(hf_model_name)
+            hb = HuggingFaceBackend(
+                model_id=hf_model_name,
+                draft_model_id=cfg.draft_model_name
+            )
             if hb.is_available():
                 print(f"  [BACKEND] HuggingFace detected -> model: {hf_model_name}")
+                if cfg.draft_model_name:
+                    print(f"  [BACKEND] Speculative Drafting enabled -> draft: {cfg.draft_model_name}")
                 return hb
         except ImportError:
             pass
@@ -187,6 +193,13 @@ class UARCRuntime:
         self.acs = AdaptiveComputeScheduler(self.cfg.acs)
         # M6: NSC
         self.nsc = NeuralSemanticCache(self.cfg.nsc)
+        # M7: EADS
+        self.eads = EADSScheduler(self.cfg.eads) if self.cfg.enable_eads else None
+
+        # Inject scheduler into backend if supported (Production EADS Engine)
+        if self.eads and hasattr(self.backend, "set_eads_scheduler"):
+            self.backend.set_eads_scheduler(self.eads)
+
         # Store n_layers for internals
         self._n_layers = n_layers
         self._eviction_thread: Optional[threading.Thread] = None
@@ -273,27 +286,66 @@ class UARCRuntime:
         # Stage 5: REAL MODEL GENERATION
         n_new = min(request.max_new_tokens, 512)
 
-        if decision.route == RouteTarget.DRAFT:
+        # 5a. EADS Cascade Execution (Draft + Verify)
+        # 5a. EADS Speculative Execution
+        if self.cfg.enable_eads and decision.route == RouteTarget.DRAFT:
             self._stats.draft_routes += 1
-            # Draft: fewer tokens, lower quality OK
-            result = self.backend.generate(
-                request.prompt, max_tokens=n_new,
-                temperature=0.9, top_p=0.95)
+            
+            # If the backend has a real speculative engine, use it
+            # Otherwise carry out the simulated rollback loop
+            if hasattr(self.backend, "_spec_engine") and self.backend._spec_engine is not None:
+                result = self.backend.generate(
+                    request.prompt, max_tokens=n_new,
+                    temperature=0.7, top_p=0.9
+                )
+                ct = result.get("token_ids", [])
+                cx = result.get("text", "")
+                prompt_toks = result.get("prompt_tokens", len(request.token_ids))
+                comp_toks = result.get("completion_tokens", len(ct))
+            else:
+                # Fallback Simulated speculative loop (for demo/mock purposes)
+                current_k = self.eads.seq_states.get(request.request_id, {}).get('current_k', self.cfg.eads.base_k)
+                draft_result = self.backend.generate(
+                    request.prompt, max_tokens=current_k, 
+                    temperature=0.9, top_p=0.95
+                )
+                draft_toks = draft_result.get("token_ids", [])
+                draft_prompt = request.prompt + draft_result.get("text", "")
+
+                verification_result = self.backend.generate(
+                    draft_prompt, max_tokens=n_new - len(draft_toks),
+                    temperature=0.7, top_p=0.9
+                )
+                accepted_k = max(1, int(current_k * (1.0 - (decision.estimated_ppl / 10.0))))
+                accepted_k = min(current_k, accepted_k)
+                
+                self.eads.update_and_get_k(request.request_id, current_k, accepted_k, decision.estimated_ppl)
+                
+                ct = draft_toks[:accepted_k] + verification_result.get("token_ids", [])
+                cx = self.backend.detokenize(ct)
+                prompt_toks = len(request.token_ids)
+                comp_toks = len(ct)
+
+        # 5b. Fallback Standard Execution
         elif decision.route == RouteTarget.PARTIAL:
             self._stats.partial_routes += 1
             result = self.backend.generate(
                 request.prompt, max_tokens=n_new,
                 temperature=0.7, top_p=0.9)
+            ct = result.get("token_ids", [])
+            cx = result.get("text", "")
+            prompt_toks = result.get("prompt_tokens", len(request.token_ids))
+            comp_toks = result.get("completion_tokens", len(ct) or len(cx.split()))
+            
         else:
             self._stats.full_routes += 1
             result = self.backend.generate(
                 request.prompt, max_tokens=n_new,
                 temperature=0.5, top_p=0.85)
-
-        ct = result.get("token_ids", [])
-        cx = result.get("text", "")
-        prompt_toks = result.get("prompt_tokens", len(request.token_ids))
-        comp_toks = result.get("completion_tokens", len(ct) or len(cx.split()))
+            ct = result.get("token_ids", [])
+            cx = result.get("text", "")
+            prompt_toks = result.get("prompt_tokens", len(request.token_ids))
+            comp_toks = result.get("completion_tokens", len(ct) or len(cx.split()))
 
         # Stage 6: NSC store
         if self.cfg.enable_nsc:
@@ -364,6 +416,7 @@ class UARCRuntime:
                 "dpe": self.dpe.stats(),
                 "pll": self.pll.stats_report(),
                 "acs": self.acs.stats_report(),
+                "eads": self.eads.stats() if self.eads else {"enabled": False},
             },
             "performance": self._stats.to_dict(),
         }

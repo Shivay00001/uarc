@@ -1,13 +1,13 @@
 """
 UARC - Full Live Demo
 ======================
-Exercises ALL 7 modules with real output as proof.
+Exercises ALL 8 modules with real output as proof.
 """
 import sys, time, json, random, uuid, io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
 print("=" * 70)
-print("  UARC LIVE DEMO - All 7 Modules Running")
+print("  UARC LIVE DEMO - All 8 Modules Running")
 print("=" * 70)
 
 # ══════════════════════════════════════════════════════════════════════
@@ -261,10 +261,34 @@ print(f"    \"{'Completely novel unique query':35s}\" -> {'[HIT]' if result else
 print(f"\n  Cache Stats: {json.dumps(nsc.stats(), indent=4)}")
 
 # ══════════════════════════════════════════════════════════════════════
-# 7. FULL RUNTIME INTEGRATION
+# 7. MODULE 7: Entropy-Aware Dynamic Speculator (EADS)
 # ══════════════════════════════════════════════════════════════════════
 print("\n" + "-" * 70)
-print("  FULL RUNTIME: All 7 Modules Integrated")
+print("  MODULE 7: Entropy-Aware Dynamic Speculator (EADS)")
+print("-" * 70)
+
+from uarc.core.config import EADSConfig
+from uarc.scheduling.eads import EADSScheduler
+
+eads = EADSScheduler(EADSConfig(base_k=4, min_k=1, max_k=8))
+req_id = "demo-eads-seq"
+eads.init_sequence(req_id)
+
+print("\n  Simulating EADS dynamic drafting (Target: adapt K based on difficulty):")
+# Turn 1: Easy token
+k1 = eads.update_and_get_k(req_id, drafted_k=4, accepted_k=4, estimated_ppl=1.2)
+print(f"    Turn 1 (Easy / Low PPL)  -> Drafted: 4, Accepted: 4. Next K = {k1}")
+k2 = eads.update_and_get_k(req_id, drafted_k=k1, accepted_k=k1, estimated_ppl=1.0)
+print(f"    Turn 2 (Easy / Low PPL)  -> Drafted: {k1}, Accepted: {k1}. Next K = {k2}")
+k3 = eads.update_and_get_k(req_id, drafted_k=k2, accepted_k=1, estimated_ppl=8.5)
+print(f"    Turn 3 (Hard / High PPL) -> Drafted: {k2}, Accepted: 1. Next K = {k3}")
+print(f"\n  EADS Stats: {json.dumps(eads.stats(), indent=4)}")
+
+# ══════════════════════════════════════════════════════════════════════
+# 8. FULL RUNTIME INTEGRATION
+# ══════════════════════════════════════════════════════════════════════
+print("\n" + "-" * 70)
+print("  FULL RUNTIME: All 8 Modules Integrated")
 print("-" * 70)
 
 from uarc.core.config import UARCConfig
@@ -274,7 +298,10 @@ cfg = UARCConfig()
 cfg.aivm.vram_mb = 256
 cfg.aivm.ram_mb = 1024
 cfg.aivm.nvme_mb = 4096
+cfg.backend = "simulated" # Use "hf" for real models
 cfg.model.n_layers = 8
+cfg.enable_eads = True
+# Real-world logic available: cfg.model_name="gpt2", cfg.draft_model_name="distilgpt2"
 
 rt = UARCRuntime(cfg)
 rt.start()
@@ -390,5 +417,5 @@ print(f"  Cache hits:    {routes.get('cache', 0)}/{n} ({routes.get('cache',0)/n:
 rt2.stop()
 
 print("\n" + "=" * 70)
-print("  [OK] ALL 7 MODULES VERIFIED - UARC IS FULLY OPERATIONAL")
+print("  [OK] ALL 8 MODULES VERIFIED - UARC IS FULLY OPERATIONAL")
 print("=" * 70 + "\n")

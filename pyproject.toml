@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "uarc"
-version = "0.2.0"
-description = "UARC - Unified Adaptive Runtime Core: Production AI inference engine"
-readme = "uarc_README.md"
+version = "0.3.0"
+description = "UARC - Unified Adaptive Runtime Core: Production AI inference engine with EADS Speculative Decoding"
+readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
-authors = [{name = "UARC Team"}]
-keywords = ["ai", "inference", "llm", "runtime", "adaptive", "ollama"]
+authors = [{name = "Shivay Singh"}]
+keywords = ["ai", "inference", "llm", "runtime", "adaptive", "ollama", "speculative-decoding", "eads"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",

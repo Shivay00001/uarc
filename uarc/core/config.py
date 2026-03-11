@@ -60,6 +60,16 @@ class NSCConfig:
 
 
 @dataclass
+class EADSConfig:
+    """Module 7: Entropy-Aware Dynamic Speculator config."""
+    base_k: int = 4
+    max_k: int = 8
+    min_k: int = 1
+    entropy_threshold: float = 2.5
+    ema_alpha: float = 0.2
+
+
+@dataclass
 class ModelConfig:
     """Model configuration."""
     n_layers: int = 32
@@ -80,6 +90,7 @@ class UARCConfig:
     pll: PLLConfig = field(default_factory=PLLConfig)
     acs: ACSConfig = field(default_factory=ACSConfig)
     nsc: NSCConfig = field(default_factory=NSCConfig)
+    eads: EADSConfig = field(default_factory=EADSConfig)
     model: ModelConfig = field(default_factory=ModelConfig)
 
     # Module enable flags
@@ -87,10 +98,12 @@ class UARCConfig:
     enable_nsc: bool = True
     enable_dpe: bool = True
     enable_pll: bool = True
+    enable_eads: bool = True
 
-    # Backend selection: "auto", "ollama", "llama_cpp", "simulated"
+    # Backend selection: "auto", "ollama", "llama_cpp", "simulated", "huggingface"
     backend: str = "auto"
-    model_name: str = "llama3.2:1b"   # Ollama model name
+    model_name: str = "llama3.2:1b"   # Main model name
+    draft_model_name: str = ""        # Speculative draft model name
     ollama_url: str = "http://localhost:11434"
     model_path: str = ""               # Path to GGUF file (for llama_cpp)
 
@@ -117,6 +130,8 @@ class UARCConfig:
             cfg.backend = v
         if v := os.environ.get("UARC_MODEL"):
             cfg.model_name = v
+        if v := os.environ.get("UARC_DRAFT_MODEL"):
+            cfg.draft_model_name = v
         if v := os.environ.get("UARC_OLLAMA_URL"):
             cfg.ollama_url = v
         if v := os.environ.get("UARC_MODEL_PATH"):

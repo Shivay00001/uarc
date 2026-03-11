@@ -19,15 +19,20 @@ class HuggingFaceBackend(ModelBackend):
     """
 
     def __init__(self, model_id: str,
+                 draft_model_id: str = "",
                  device: str = "auto",
                  dtype: str = "auto",
                  trust_remote_code: bool = False):
         self._model_id = model_id
+        self._draft_model_id = draft_model_id
         self._device_map = device
         self._dtype = dtype
         self._trust_remote_code = trust_remote_code
         self._model = None
+        self._draft_model = None
         self._tokenizer = None
+        self._scheduler = None
+        self._spec_engine = None
 
     def load(self) -> None:
         try:
@@ -57,9 +62,33 @@ class HuggingFaceBackend(ModelBackend):
             self._model_id,
             device_map=self._device_map,
             torch_dtype=torch_dtype,
-            trust_remote_code=self._trust_remote_code
+            trust_remote_code=self._trust_remote_code,
+            # weights_only=True is becoming the default for security
+            # We explicitly set it to True to avoid the ValueError on some systems
+            weights_only=True,
+            use_safetensors=True
         )
         self._model.eval()
+
+        # Load Draft Model if specified
+        if self._draft_model_id:
+            self._draft_model = AutoModelForCausalLM.from_pretrained(
+                self._draft_model_id,
+                device_map=self._device_map,
+                torch_dtype=torch_dtype,
+                trust_remote_code=self._trust_remote_code,
+                weights_only=True,
+                use_safetensors=True
+            )
+            self._draft_model.eval()
+            
+            # Initialize Speculative Engine
+            from uarc.scheduling.eads_engine import EADSSpeculativeEngine
+            self._spec_engine = EADSSpeculativeEngine(
+                self._model, 
+                self._draft_model, 
+                scheduler=self._scheduler
+            )
 
     def unload(self) -> None:
         if self._model is not None:
@@ -68,6 +97,10 @@ class HuggingFaceBackend(ModelBackend):
         if self._tokenizer is not None:
             del self._tokenizer
             self._tokenizer = None
+        if self._draft_model is not None:
+            del self._draft_model
+            self._draft_model = None
+        self._spec_engine = None
         
         try:
             import torch
@@ -77,7 +110,19 @@ class HuggingFaceBackend(ModelBackend):
             pass
 
     def is_available(self) -> bool:
-        return self._model is not None
+        """Check if required libraries are installed."""
+        try:
+            import torch
+            import transformers
+            return True
+        except ImportError:
+            return False
+
+    def set_eads_scheduler(self, scheduler: Any) -> None:
+        """Inject the EADS scheduler for speculative depth control."""
+        self._scheduler = scheduler
+        if self._spec_engine:
+            self._spec_engine.scheduler = scheduler
 
     def generate(self, prompt: str, max_tokens: int = 256,
                  temperature: float = 0.7, top_p: float = 0.9,
@@ -101,10 +146,18 @@ class HuggingFaceBackend(ModelBackend):
         # Handle early stopping strings conceptually (HF stop_strings require latest transformers)
         # We'll just generate and trim later for simplicity
         
-        with torch.no_grad():
-            outputs = self._model.generate(**inputs, **gen_kwargs)
-            
-        generated_ids = outputs[0][prompt_len:]
+        # Speculative Routing
+        if self._spec_engine:
+            import torch
+            input_ids = self._tokenizer.encode(prompt, return_tensors="pt").to(self._model.device)
+            # Use engine to generate
+            # Note: Engine currently returns full sequence, we slice it
+            output_ids = self._spec_engine.generate(input_ids, max_tokens)
+            generated_ids = output_ids[0, input_ids.shape[1]:]
+        else:
+            with torch.no_grad():
+                outputs = self._model.generate(**inputs, **gen_kwargs)
+            generated_ids = outputs[0][prompt_len:]
         text = self._tokenizer.decode(generated_ids, skip_special_tokens=True)
         
         # Manual stop string check
