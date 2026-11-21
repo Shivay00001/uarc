@@ -1,5 +1,7 @@
 # Uarc
 
+Built by [VisionQuantech](https://visionquantech.com) — AI agents, apps & tools for small businesses.
+
 UARC - Unified Adaptive Runtime Core: Production AI inference engine
 
 ![Language](https://img.shields.io/badge/Language-Python-blue)
